@@ -1,0 +1,16 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+
+# Config files
+configs/config.yaml
+
+# Environment variables
+.env
+
+# Data files
+data/raw/
+data/processed/
+
+# Jupyter Notebook checkpoints
+notebooks/.ipynb_checkpoints/
