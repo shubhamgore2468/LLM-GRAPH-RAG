@@ -8,13 +8,13 @@ from models.createGraph import add_data_to_graph
 from inference.langchain_integration import chain
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from scripts.getData import crawlAI
+from data_collection.crawlData import crawlAI
 
-st.set_page_config(
-    page_title="Customer Review Analysis",
-    page_icon="📦",
-)
-st.title("Customer Review Analysis")
+# st.set_page_config(
+#     page_title="Customer Review Analysis",
+#     page_icon="📦",
+# )
+# st.title("Customer Review Analysis")
 
 url1, url2 = None, None
 
@@ -42,24 +42,11 @@ if url1 is None and url2 is None:
                 
                 with open("../data/crawl_new.json", "w") as json_file:
                     json.dump(json_data, json_file, indent=4)
+                # st.write(json_data)
                 st.write("Data Successfully fetched!")            
                 documents = preprocess_document('../data/crawl_new.json')
                 add_data_to_graph(documents)
-
+                st.write(documents)
+                st.write("Ask the chatbot!")
             except Exception as e:
                 st.write(f"An error occurred: {e}")
-
-prompt = st.chat_input("Say something")
-print(f"Prompt: {prompt}")
-
-# Needs to make call to the model
-if prompt:
-    st.write(f"User has sent the following prompt: {prompt}")
-    try:
-        # Call the RAG model with the prompt
-        response = chain.invoke({"question": prompt})
-        st.write(response)
-    except Exception as e:
-        st.write(f"An error occurred while invoking the chain: {e}")
-else:
-    st.write("Prompt is empty or None.")

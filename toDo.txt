@@ -1,0 +1,7 @@
+1. Reload app.py - Done added streamlit pages
+2. tavilly for Crawling - done
+3. docker neo4j setup - new instance
+4. Nvidia embeddings
+5. Setup logging
+6. add support for other ecomm platforms
+
