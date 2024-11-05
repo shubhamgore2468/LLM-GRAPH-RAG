@@ -277,7 +277,7 @@ chain = (
 
 
 
-chain.invoke({"question": "which is the best phone for daily usage?"})
+# chain.invoke({"question": "which is the best phone for daily usage?"})
 
 
-chain.invoke({"question": "which is better for taking photos and processing them for photography"})
+# chain.invoke({"question": "which is better for taking photos and processing them for photography"})

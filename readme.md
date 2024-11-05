@@ -2,6 +2,5 @@ This a LLM GRAPH RAG for comparing products and their reviews across various sit
 
 Technologies used
 
-To do
-
-1. add support for other ecomm platforms
+Langchain
+Neo4j

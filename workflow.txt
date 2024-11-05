@@ -1,3 +1,11 @@
+add prodct info/name
 1. scrape reviews
 2. make a dataset of reviews - variable
 3. pass to neo4j
+4. setup logging
+5. add memory to llm
+
+https://www.amazon.com/iPhone-Pro-256GB-Black-Titanium/dp/B0DHT1DDXR/ref=sr_1_1?crid=LUZEXFWURP39&dib=eyJ2IjoiMSJ9.Itakf9GhZj0yI-onlp5HSIGX1-hgLRNCOx0Ayarl10vbFEQHrzuXC_zHT8Lhkh13ndR1kiBA8GPFISmNQTH2k6xC-ZWIXmhUYPksWdOzfp0wqrGeseG2S-0w1xReO-80nbU9aPZ924Cdl4hDhZUxxo3muPMvq-_kfyXtWFvzOc5KKH_vLDIvcepZqGxb9fGYE5ZK3Q8TV_hSRHc91rnSo6zVrttfsRf4kgkniLz2FDY.S5xu4_I1dpBSDqy1Rw2jV5XjQHZJi1E4k4lvHqlmocU&dib_tag=se&keywords=iphone+16&qid=1730487839&sprefix=iphone+16%2Caps%2C167&sr=8-1
+
+
+https://www.amazon.com/SAMSUNG-Smartphone-Unlocked-Android-Processor/dp/B0CMDTFNGM/ref=sr_1_2?crid=36CLGG1CAHK3R&dib=eyJ2IjoiMSJ9.a9ToxiASBp78zfb7j1RwvUFJKkH26BubYK_bhEtouPoJ83lCriA88VqV9Ys_NIvr0ct5AXLdy1jlCJluckBbYMu0ztp9gjl8vH2Twm5ILzzTOfrUOGplY-wPpwQWdwQFgXqgkR8tr8gcYsCP5ccCqqfZp599kskrIpVx1_t3z9zG8LRLzAjvbBtpE4PY38lRnwVBBLlY8hZBzbwjIbnX_e7YV9DtqqN0GLSH6_GKesI.I8xhstS12M1lBvNi2ZqJj9yaiisv31Py7JZ2L-ZZA1g&dib_tag=se&keywords=samsung+s24&qid=1730397375&sprefix=samsung+s24%2Caps%2C174&sr=8-2
