@@ -7,9 +7,7 @@ import logging
 # setup_logging()
 load_dotenv()
 
-os.environ['NEO4J_USERNAME'] = "neo4j"
-os.environ['NEO4J_PASSWORD'] = "bcZ7MfY1rSKjRjbJVXcnpTCQVGhpi5QUP2ai-22PGDk"
-os.environ['NEO4J_URI'] = "neo4j+s://935f0b57.databases.neo4j.io"
+
 
 
 # neo4j_url = os.getenv("NEO4J_URI")
