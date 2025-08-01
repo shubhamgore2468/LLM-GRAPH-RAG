@@ -1,10 +1,7 @@
 # pip install --upgrade --quiet langchain langchain-community langchain-openai langchain-experimental neo4j wikipedia tiktoken yfiles_jupyter_graphs'
 import os
 
-OPENAI_API_KEY = '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'
-NEO4J_USERNAME = "neo4j"
-NEO4J_PASSWORD = "0QpuNom0_Qr9-zLvCqyaaWTDE6FPI8T6zO87iIoRqXw"
-NEO4J_URI = "neo4j+s://dfea93cd.databases.neo4j.io"
+
 
 os.environ['NEO4J_USERNAME'] = NEO4J_USERNAME
 os.environ['NEO4J_PASSWORD'] = NEO4J_PASSWORD

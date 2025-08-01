@@ -1,14 +1,16 @@
+from typing import Tuple, List, Optional
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.prompts.prompt import PromptTemplate
 from langchain_openai import ChatOpenAI
 from langchain_community.vectorstores.neo4j_vector import remove_lucene_chars
-
+import os
 # from utils.utils_query import retriever
 from langchain_core.output_parsers import StrOutputParser
 from langchain_openai import OpenAIEmbeddings
 from langchain_community.vectorstores import Neo4jVector
 from pydantic import BaseModel, Field
 from typing import List
+from langchain_core.messages import AIMessage, HumanMessage
 
 from models.createGraph import llm
 
@@ -20,6 +22,10 @@ from langchain_core.runnables import (
     RunnableParallel,
     RunnablePassthrough,
 )
+
+os.environ['OPENAI_API_KEY'] = os.getenv('OPENAI_API_KEY')
+
+llm = ChatOpenAI(model='gpt-3.5-turbo')
 
 def generate_full_text_query(input: str) -> str:
     full_text_query = ""
@@ -34,20 +40,23 @@ def structured_retriever(question: str) -> str:
     entities = entity_chain.invoke({"question": question})
     for entity in entities.names:
         response = graph.query(
-            """CALL db.index.fulltext.queryNodes('entity', $query, {limit:2})
-            YIELD node, score
-            CALL {
-              WITH node
-              MATCH (node)-[r:MENTIONS]->(neighbor)
-              RETURN node.id + ' - ' + type(r) + ' -> ' + neighbor.id AS output
-              UNION ALL
-              MATCH (node)<-[r:MENTIONS]-(neighbor)
-              RETURN neighbor.id + ' - ' + type(r) + ' -> ' + node.id AS output
-            } IN TRANSACTIONS 
-            RETURN output LIMIT 50
-            """,
-            {"query": generate_full_text_query(entity)},
-        )
+    """
+    CALL db.index.fulltext.queryNodes('entity', $query, {limit: 2})
+    YIELD node, score
+    
+    CALL {
+        WITH node
+        MATCH (node)-[r:MENTIONS]->(neighbor)
+        RETURN node.id + ' - ' + type(r) + ' -> ' + neighbor.id AS output
+        UNION ALL
+        MATCH (node)<-[r:MENTIONS]-(neighbor)
+        RETURN neighbor.id + ' - ' + type(r) + ' -> ' + node.id AS output
+    }
+    RETURN output
+    LIMIT 50
+    """,
+    {"query": generate_full_text_query(entity)},
+    )
         result += "\n".join([el['output'] for el in response])
     return result
 
@@ -62,7 +71,7 @@ Unstructured data:
     """
     return final_data
 
-default_cypher = "MATCH (s)-[r:!MENTIONS]->(t) RETURN s,r,t LIMIT 50"
+# default_cypher = "MATCH (s)-[r:!MENTIONS]->(t) RETURN s,r,t LIMIT 50"
 
 
 vector_index = Neo4jVector.from_existing_graph(
@@ -85,7 +94,7 @@ class Entities(BaseModel):
         "appear in the text",
     )
 
-prompt = ChatPromptTemplate.from_messages(
+entity_prompt = ChatPromptTemplate.from_messages(
     [
         (
             "system",
@@ -99,17 +108,8 @@ prompt = ChatPromptTemplate.from_messages(
     ]
 )
 
-entity_chain = prompt | llm.with_structured_output(Entities)
+entity_chain = entity_prompt | llm.with_structured_output(Entities)
 # entity_chain.invoke({"question": "which product is better?"}).names
-
-vector_index = Neo4jVector.from_existing_graph(
-    OpenAIEmbeddings(),
-    search_type="hybrid",
-    node_label="Document",
-    text_node_properties=["text"],
-    embedding_node_property="embedding",
-    index_name="new_vector_index"
-)
 
 _template = """Given the following conversation and a follow up question, rephrase the follow up question to be a standalone question,
 in its original language.
@@ -119,6 +119,13 @@ Follow Up Input: {question}
 Standalone question:"""
 
 CONDENSE_QUESTION_PROMPT = PromptTemplate.from_template(_template)
+
+def _format_chat_history(chat_history: List[Tuple[str, str]]) -> List:
+    buffer = []
+    for human, ai in chat_history:
+        buffer.append(HumanMessage(content=human))
+        buffer.append(AIMessage(content=ai))
+    return buffer
 
 _search_query = RunnableBranch(
     # If input includes chat_history, we condense it with the follow-up question
@@ -130,7 +137,7 @@ _search_query = RunnableBranch(
             chat_history=lambda x: _format_chat_history(x["chat_history"])
         )
         | CONDENSE_QUESTION_PROMPT
-        | ChatOpenAI(temperature=0)
+        | llm
         | StrOutputParser(),
     ),
     # Else, we have no chat history, so just pass through the question
@@ -139,7 +146,7 @@ _search_query = RunnableBranch(
 
 
 
-template = """Answer the question based only on the following context:
+question_template = """Answer the question based only on the following context:
 {context}
 
 Question: {question}
@@ -149,7 +156,7 @@ Answer:"""
 
 
 
-prompt = ChatPromptTemplate.from_template(template)
+prompt = ChatPromptTemplate.from_template(question_template)
 
 
 chain = (
@@ -164,9 +171,18 @@ chain = (
     | StrOutputParser()
 )
 
+chain.invoke({"question": "which is the best phone for daily usage?"})
 
+def process_prompt(prompt: str, chat_history: List[dict] = None) -> str:
+    # Prepare input for chain.invoke
+    input_data = {
+        "question": prompt,
+        "chat_history": chat_history or []
+    }
 
-# chain.invoke({"question": "which is the best phone for daily usage?"})
+    # Invoke the chain and return the result
+    return chain.invoke(input_data)
+
 
 
 # chain.invoke({"question": "which is better for taking photos and processing them for photography"})

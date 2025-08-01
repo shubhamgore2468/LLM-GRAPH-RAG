@@ -1,14 +1,12 @@
 import os
 from langchain_openai  import ChatOpenAI
 from langchain_experimental.graph_transformers import LLMGraphTransformer
-from langchain_community.vectorstores import Neo4jVector
-from langchain_openai import OpenAIEmbeddings
-from yfiles_jupyter_graphs import GraphWidget
 from neo4j import GraphDatabase
-from langchain_community.graphs import Neo4jGraph
 from dotenv import load_dotenv
 from database.GraphModel import graph_instance as graph
-
+import logging
+# from logging_config import setup_logging
+# setup_logging()
 load_dotenv()
 
 os.environ['OPENAI_API_KEY'] = os.getenv('OPENAI_API_KEY')
@@ -27,7 +25,7 @@ def add_data_to_graph(documents):
             baseEntityLabel=True,
             include_source=True
         )
-
+        print("Successfully added data to the graph.")
 
     except Exception as e:
-        print(f"An error occurred while adding data to the graph: {e}")
+        logging.error(f"An error occurred while adding data to the graph: {e}")
