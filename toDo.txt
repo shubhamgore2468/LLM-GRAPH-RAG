@@ -4,4 +4,3 @@
 4. Nvidia embeddings
 5. Setup logging
 6. add support for other ecomm platforms
-

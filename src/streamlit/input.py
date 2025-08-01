@@ -3,12 +3,15 @@ import os
 import sys
 import streamlit as st
 import json
+import logging
 from data_processing.preprocess import preprocess_document
 from models.createGraph import add_data_to_graph
 from inference.langchain_integration import chain
+# from logging_config import setup_logging
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from data_collection.crawlData import crawlAI
+# setup_logging()
 
 # st.set_page_config(
 #     page_title="Customer Review Analysis",
@@ -43,10 +46,11 @@ if url1 is None and url2 is None:
                 with open("../data/crawl_new.json", "w") as json_file:
                     json.dump(json_data, json_file, indent=4)
                 # st.write(json_data)
-                st.write("Data Successfully fetched!")            
+                # st.write("Data Successfully fetched!")            
                 documents = preprocess_document('../data/crawl_new.json')
                 add_data_to_graph(documents)
-                st.write(documents)
+                print("Data successfully fetched and added to the graph.")
+
                 st.write("Ask the chatbot!")
             except Exception as e:
-                st.write(f"An error occurred: {e}")
+                logging.error(f"An error occurred: {e}")

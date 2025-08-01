@@ -14,6 +14,8 @@ def response_tavily(query):
 
     # Step 3. Extracting the content from the search results
     contents = [item['content'] for item in response['results']]
-
+    print("---------------Tavbily response----------------")
+    print(contents)
+    print("---------------Tavbily response----------------")
     # Join the contents into a single string
     return " ".join(contents)

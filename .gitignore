@@ -12,5 +12,9 @@ configs/config.yaml
 data/raw/
 data/processed/
 
+secrets/
+
+docker-compose.yml
+
 # Jupyter Notebook checkpoints
 notebooks/.ipynb_checkpoints/

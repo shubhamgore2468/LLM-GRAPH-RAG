@@ -33,7 +33,7 @@ async def extract_reviews_and_product_info(content, json_data):
 
     # Add the Tavily response to the product info
     product_info['description'] += f" {tavily_response}"
-    print(tavily_response)  
+    # print(tavily_response)  
 
     # Add the product info to the dictionary using the title as the key
     json_data[title_key] = product_info
