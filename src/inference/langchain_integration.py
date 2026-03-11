@@ -9,6 +9,7 @@ from langchain_core.runnables import RunnableBranch, RunnableLambda, RunnablePar
 from langchain_core.messages import AIMessage, HumanMessage
 
 from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
+from google.oauth2 import service_account
 
 from langchain_neo4j import Neo4jVector
 from langchain_neo4j.vectorstores.neo4j_vector import remove_lucene_chars
@@ -18,10 +19,16 @@ from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 load_dotenv()
 
-if not os.getenv('GOOGLE_APPLICATION_CREDENTIALS'):
+_creds_path = os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
+if not _creds_path:
     raise EnvironmentError("GOOGLE_APPLICATION_CREDENTIALS is not set in the environment.")
 
-llm = ChatGoogleGenerativeAI(model='gemini-2.5-flash-lite')
+_credentials = service_account.Credentials.from_service_account_file(
+    _creds_path,
+    scopes=["https://www.googleapis.com/auth/cloud-platform"],
+)
+
+llm = ChatGoogleGenerativeAI(model='gemini-2.5-flash-lite', credentials=_credentials)
 
 def generate_full_text_query(input: str) -> str:
     logging.info(f"[generate_full_text_query] Raw input: {input}")
@@ -95,7 +102,7 @@ def retriever(question: str):
     return final_data
 
 vector_index = Neo4jVector.from_existing_graph(
-    GoogleGenerativeAIEmbeddings(model="models/text-embedding-004"),
+    GoogleGenerativeAIEmbeddings(model="models/text-embedding-004", credentials=_credentials),
     search_type="hybrid",
     node_label="Document",
     text_node_properties=["text"],

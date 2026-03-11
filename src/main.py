@@ -64,7 +64,7 @@ async def analyze_urls(payload: URLRequest):
     try:
         for url in urls:
             logger.info(f"Crawling URL: {url}")
-            await crawlAI(url, JSON_DATA)
+            crawlAI(url, JSON_DATA)
             logger.info("Crawling complete")
 
         # Optionally write to disk

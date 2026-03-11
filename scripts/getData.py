@@ -1,42 +1,34 @@
-from crawl4ai import AsyncWebCrawler
-from bs4 import BeautifulSoup
-from scripts.tavily_search import response_tavily
+import os
+import logging
+from tavily import TavilyClient
+from dotenv import load_dotenv
 
-async def extract_reviews_and_product_info(content, json_data):
-    """Parse the page content to extract reviews and product information."""
-    soup = BeautifulSoup(content, "html.parser")
-    
-    product_title = soup.find("span", {"id": "productTitle"})
-    product_price = soup.find("span", {"class": "a-price-whole"})
-    product_desc = soup.find("div", {"id": "productDescription_feature_div"})
-    
-    reviews = soup.find_all("span", {"data-hook": "review-body"})
-    
-    title_text = product_title.get_text(strip=True) if product_title else None
+load_dotenv()
 
-    product_info = {
-        "title": title_text or "Unknown Product",
-        "price": product_price.get_text(strip=True) if product_price else "Price not found",
-        "description": product_desc.get_text(strip=True) if product_desc else "Description not found",
-        "reviews": [review.get_text(strip=True) for review in reviews] if reviews else []
+def crawlAI(url, json_data):
+    """Extract product info from a URL using Tavily's extract API."""
+    client = TavilyClient(api_key=os.getenv("TAVILY_API_KEY"))
+
+    # Use Tavily search to get product info from the URL
+    search_response = client.search(url, max_results=5)
+    search_results = search_response.get("results", [])
+
+    if not search_results:
+        logging.warning(f"Tavily search returned no results for {url}")
+        key = f"product_{len(json_data) + 1}"
+        json_data[key] = {"title": key, "description": "", "about": "", "reviews": []}
+        return json_data
+
+    title = search_results[0].get("title", "")
+    title_key = " ".join(title.split()[:3]) if title else f"product_{len(json_data) + 1}"
+    description = " ".join(item["content"] for item in search_results)
+
+    json_data[title_key] = {
+        "title": title or title_key,
+        "description": description,
+        "about": "",
+        "reviews": [],
     }
 
-    # Use URL as fallback key to avoid collision when title is missing
-    title_key = " ".join(product_info['title'].split()[:3]) if title_text else f"product_{len(json_data) + 1}"
-
-    if title_text:
-        tavily_response = response_tavily(title_text)
-        product_info['description'] += f" {tavily_response}"
-    
-
-    json_data[title_key] = product_info
-
+    logging.info(f"Extracted product: {title_key}")
     return json_data
-
-async def crawlAI(url, json_data):
-    async with AsyncWebCrawler(verbose=False) as crawler:
-        result = await crawler.arun(url)
-
-        await extract_reviews_and_product_info(result.html, json_data)
-
-        return json_data

@@ -3,12 +3,11 @@ uvicorn[standard]
 streamlit
 langchain-core
 langchain-google-genai
+google-auth
 langchain-neo4j
 langchain-experimental
 langchain-text-splitters
 neo4j
 pydantic
 python-dotenv
-crawl4ai
-beautifulsoup4
 tavily-python

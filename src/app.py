@@ -1,4 +1,3 @@
-import asyncio
 import os
 import sys
 import streamlit as st
@@ -30,11 +29,6 @@ if not st.session_state.analysis_complete:
     url1 = st.text_input("Enter product URL 1")
     url2 = st.text_input("Enter product URL 2")
 
-    def run_asyncio_task(task):
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        return loop.run_until_complete(task)
-
     if st.button("Analyze"):
         if not url1 or not url2:
             st.warning("Please enter both URLs.")
@@ -45,10 +39,8 @@ if not st.session_state.analysis_complete:
             try:
                 with st.spinner("Crawling URLs and processing data..."):
                     for url in urls:
-                        logging.info(f"Crawling URL:")
-                        json_res = run_asyncio_task(crawlAI(url, json_data))
-                        # not using tavily yet, crawl4ai in scripts/getData.py
-                        logging.info("\n")
+                        logging.info(f"Extracting URL: {url}")
+                        crawlAI(url, json_data)
 
                     data_path = os.path.join(os.path.dirname(__file__), '..', 'data', 'crawl_new.json')
                     with open(data_path, "w") as json_file:

@@ -1,0 +1,71 @@
+name: Deploy to Cloud Run
+
+on:
+  push:
+    branches: [main]
+
+env:
+  PROJECT_ID: composite-sun-475518-i3
+  REGION: us-central1
+  SERVICE: graphrag-api
+  REGISTRY: us-central1-docker.pkg.dev
+  REPO: graphrag
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Authenticate GitHub Actions with GCP using a service account key
+      # Store your service account JSON as the GitHub secret GCP_SA_KEY
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ env.REGISTRY }} --quiet
+
+      - name: Build and push image
+        run: |
+          IMAGE=${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/${{ env.REPO }}/api
+          docker build -t $IMAGE:${{ github.sha }} -t $IMAGE:latest .
+          docker push $IMAGE:${{ github.sha }}
+          docker push $IMAGE:latest
+
+      # Store the Google credentials JSON in Secret Manager so Cloud Run can mount it
+      # Store the raw JSON content as the GitHub secret APP_GOOGLE_CREDENTIALS
+      - name: Sync credentials to Secret Manager
+        run: |
+          echo '${{ secrets.APP_GOOGLE_CREDENTIALS }}' | \
+            gcloud secrets versions add google-app-credentials --data-file=- 2>/dev/null || \
+          echo '${{ secrets.APP_GOOGLE_CREDENTIALS }}' | \
+            gcloud secrets create google-app-credentials \
+              --replication-policy=automatic \
+              --data-file=-
+
+      - name: Deploy to Cloud Run
+        run: |
+          IMAGE=${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/${{ env.REPO }}/api
+          gcloud run deploy ${{ env.SERVICE }} \
+            --image $IMAGE:${{ github.sha }} \
+            --region ${{ env.REGION }} \
+            --platform managed \
+            --allow-unauthenticated \
+            --memory 2Gi \
+            --timeout 300 \
+            --set-env-vars "\
+              NEO4J_URI=${{ secrets.NEO4J_URI }},\
+              NEO4J_USERNAME=${{ secrets.NEO4J_USERNAME }},\
+              NEO4J_PASSWORD=${{ secrets.NEO4J_PASSWORD }},\
+              TAVILY_API_KEY=${{ secrets.TAVILY_API_KEY }},\
+              GOOGLE_APPLICATION_CREDENTIALS=/secrets/google-credentials.json" \
+            --set-secrets "/secrets/google-credentials.json=google-app-credentials:latest"
