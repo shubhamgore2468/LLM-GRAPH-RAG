@@ -3,22 +3,30 @@ import os
 import sys
 import streamlit as st
 import json
+import logging
 from data_processing.preprocess import preprocess_document
 from models.createGraph import add_data_to_graph
 from inference.langchain_integration import chain
 
+# Set up logging
+
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from scripts.getData import crawlAI
 
-st.set_page_config(
-    page_title="Customer Review Analysis",
-    page_icon="📦",
-)
+from logging_config import setup_logging
+setup_logging()
+
 st.title("Customer Review Analysis")
 
-url1, url2 = None, None
+# Initialize session state variables
+if "analysis_complete" not in st.session_state:
+    st.session_state.analysis_complete = False
 
-if url1 is None and url2 is None:
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+
+# Only show URL input section if analysis is not complete
+if not st.session_state.analysis_complete:
     url1 = st.text_input("Enter product URL 1")
     url2 = st.text_input("Enter product URL 2")
 
@@ -29,37 +37,81 @@ if url1 is None and url2 is None:
 
     if st.button("Analyze"):
         if not url1 or not url2:
-            st.write("Please enter both URLs.")
+            st.warning("Please enter both URLs.")
         else:
             urls = [url1, url2]
             json_data = {}
 
             try:
-                for url in urls:
-                    print(f"Crawling URL: {url}")
-                    json_res = run_asyncio_task(crawlAI(url, json_data))
-                    print("\n")
-                
-                with open("../data/crawl_new.json", "w") as json_file:
-                    json.dump(json_data, json_file, indent=4)
-                st.write("Data Successfully fetched!")            
-                documents = preprocess_document('../data/crawl_new.json')
-                add_data_to_graph(documents)
+                with st.spinner("Crawling URLs and processing data..."):
+                    for url in urls:
+                        logging.info(f"Crawling URL:")
+                        json_res = run_asyncio_task(crawlAI(url, json_data))
+                        # not using tavily yet, crawl4ai in scripts/getData.py
+                        logging.info("\n")
+
+                    data_path = os.path.join(os.path.dirname(__file__), '..', 'data', 'crawl_new.json')
+                    with open(data_path, "w") as json_file:
+                        json.dump(json_data, json_file, indent=4)
+
+                    st.success("Data Successfully fetched!")
+
+                    # Pass the in-memory JSON object instead of file path
+                    documents = preprocess_document(json_data)
+                    add_data_to_graph(documents)
+
+                    # Mark analysis as complete
+                    st.session_state.analysis_complete = True
+                    st.success("Analysis complete! You can now ask questions about the products.")
+                    st.rerun()
 
             except Exception as e:
-                st.write(f"An error occurred: {e}")
+                logging.error(f"An error occurred: {e}")
+                st.error(f"An error occurred: {e}")
 
-prompt = st.chat_input("Say something")
-print(f"Prompt: {prompt}")
+# Chat section - only available after analysis is complete
+if st.session_state.analysis_complete:
+    st.markdown("---")
+    st.subheader("Ask questions about the analyzed products:")
 
-# Needs to make call to the model
-if prompt:
-    st.write(f"User has sent the following prompt: {prompt}")
-    try:
-        # Call the RAG model with the prompt
-        response = chain.invoke({"question": prompt})
-        st.write(response)
-    except Exception as e:
-        st.write(f"An error occurred while invoking the chain: {e}")
+    # Add a reset button
+    if st.button("Start New Analysis", type="secondary"):
+        st.session_state.analysis_complete = False
+        st.session_state.messages = []  # Clear chat history
+        st.rerun()
+
+    # Display chat messages from history
+    for message in st.session_state.messages:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
+
+    # Chat input
+    if prompt := st.chat_input("Ask something about the products..."):
+        # Add user message to chat history
+        st.session_state.messages.append({"role": "user", "content": prompt})
+
+        # Display user message
+        with st.chat_message("user"):
+            st.markdown(prompt)
+
+        try:
+            with st.spinner("Processing your question..."):
+                # Call the RAG model with the prompt
+                response = chain.invoke({"question": prompt})
+
+                # Add assistant response to chat history
+                st.session_state.messages.append({"role": "assistant", "content": response})
+
+                # Display assistant response
+                with st.chat_message("assistant"):
+                    st.markdown(response)
+
+        except Exception as e:
+            error_msg = f"An error occurred while processing your question: {e}"
+            logging.error(error_msg)
+            st.error(error_msg)
+            # Add error to chat history
+            st.session_state.messages.append({"role": "assistant", "content": error_msg})
+
 else:
-    st.write("Prompt is empty or None.")
+    st.info("Please enter URLs and click 'Analyze' to process the data before asking questions.")

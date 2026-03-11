@@ -3,6 +3,9 @@ import json
 from crawl4ai import AsyncWebCrawler
 from bs4 import BeautifulSoup
 from data_collection.tavily_data import response_tavily
+import logging
+
+logging.getLogger("crawl4ai").setLevel(logging.WARNING)
 
 async def extract_reviews_and_product_info(content, json_data):
     """Parse the page content to extract reviews and product information."""
@@ -42,7 +45,8 @@ async def extract_reviews_and_product_info(content, json_data):
 
 async def crawlAI(url, json_data):
     # Create an instance of AsyncWebCrawler
-    async with AsyncWebCrawler(verbose=True) as crawler:
+    # browser_config = BrowserConfig(verbose=False)
+    async with AsyncWebCrawler(verbose=False) as crawler:
         # Run the crawler on a URL
         result = await crawler.arun(url)
 

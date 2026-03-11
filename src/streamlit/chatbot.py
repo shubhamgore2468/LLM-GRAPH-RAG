@@ -1,6 +1,9 @@
 import streamlit as st
-import random
+import sys
+import os
 import time
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from inference.langchain_integration import process_prompt
 
 # Streamed response emulator

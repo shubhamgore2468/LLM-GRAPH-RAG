@@ -4,13 +4,12 @@ import sys
 import streamlit as st
 import json
 import logging
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from data_processing.preprocess import preprocess_document
 from models.createGraph import add_data_to_graph
 from inference.langchain_integration import chain
-# from logging_config import setup_logging
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from data_collection.crawlData import crawlAI
+from scripts.getData import crawlAI
 # setup_logging()
 
 # st.set_page_config(
@@ -43,11 +42,12 @@ if url1 is None and url2 is None:
                     json_res = run_asyncio_task(crawlAI(url, json_data))
                     print("\n")
                 
-                with open("../data/crawl_new.json", "w") as json_file:
+                data_path = os.path.join(os.path.dirname(__file__), '..', '..', 'data', 'crawl_new.json')
+                with open(data_path, "w") as json_file:
                     json.dump(json_data, json_file, indent=4)
                 # st.write(json_data)
-                # st.write("Data Successfully fetched!")            
-                documents = preprocess_document('../data/crawl_new.json')
+                # st.write("Data Successfully fetched!")
+                documents = preprocess_document(json_data)
                 add_data_to_graph(documents)
                 print("Data successfully fetched and added to the graph.")
 

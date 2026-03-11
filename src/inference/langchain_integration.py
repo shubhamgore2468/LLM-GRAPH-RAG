@@ -1,81 +1,101 @@
-from typing import Tuple, List, Optional
+from typing import Tuple, List
+import os
+import logging
+
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.prompts.prompt import PromptTemplate
-from langchain_openai import ChatOpenAI
-from langchain_community.vectorstores.neo4j_vector import remove_lucene_chars
-import os
-# from utils.utils_query import retriever
 from langchain_core.output_parsers import StrOutputParser
-from langchain_openai import OpenAIEmbeddings
-from langchain_community.vectorstores import Neo4jVector
-from pydantic import BaseModel, Field
-from typing import List
+from langchain_core.runnables import RunnableBranch, RunnableLambda, RunnableParallel, RunnablePassthrough
 from langchain_core.messages import AIMessage, HumanMessage
 
-from models.createGraph import llm
+from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
 
-from database.GraphModel import graph_instance as graph
+from langchain_neo4j import Neo4jVector
+from langchain_neo4j.vectorstores.neo4j_vector import remove_lucene_chars
+from src.database.GraphModel import graph
+from pydantic import BaseModel, Field
 
-from langchain_core.runnables import (
-    RunnableBranch,
-    RunnableLambda,
-    RunnableParallel,
-    RunnablePassthrough,
-)
+from dotenv import load_dotenv
+load_dotenv()
 
-os.environ['OPENAI_API_KEY'] = os.getenv('OPENAI_API_KEY')
+if not os.getenv('GOOGLE_APPLICATION_CREDENTIALS'):
+    raise EnvironmentError("GOOGLE_APPLICATION_CREDENTIALS is not set in the environment.")
 
-llm = ChatOpenAI(model='gpt-3.5-turbo')
+llm = ChatGoogleGenerativeAI(model='gemini-2.5-flash-lite')
 
 def generate_full_text_query(input: str) -> str:
+    logging.info(f"[generate_full_text_query] Raw input: {input}")
     full_text_query = ""
     words = [el for el in remove_lucene_chars(input).split() if el]
+    if not words:
+        return ""
     for word in words[:-1]:
         full_text_query += f" {word}~2 AND"
     full_text_query += f" {words[-1]}~2"
-    return full_text_query.strip()
+    query = full_text_query.strip()
+    logging.info(f"[generate_full_text_query] Generated query: {query}")
+    return query
 
 def structured_retriever(question: str) -> str:
+    # This function's core logic remains the same
+    logging.info(f"[structured_retriever] Question received: {question}")
     result = ""
     entities = entity_chain.invoke({"question": question})
-    for entity in entities.names:
-        response = graph.query(
-    """
-    CALL db.index.fulltext.queryNodes('entity', $query, {limit: 2})
-    YIELD node, score
+    logging.info(f"[structured_retriever] Extracted entities: {entities.names}")
+    # Return early if no entities are found
+    if not entities.names:
+        return "" # Return an empty string
     
-    CALL {
-        WITH node
-        MATCH (node)-[r:MENTIONS]->(neighbor)
-        RETURN node.id + ' - ' + type(r) + ' -> ' + neighbor.id AS output
-        UNION ALL
-        MATCH (node)<-[r:MENTIONS]-(neighbor)
-        RETURN neighbor.id + ' - ' + type(r) + ' -> ' + node.id AS output
-    }
-    RETURN output
-    LIMIT 50
-    """,
-    {"query": generate_full_text_query(entity)},
-    )
+    for entity in entities.names:
+        # ... rest of the function is the same
+        ft_query = generate_full_text_query(entity)
+        response = graph.query(
+            """
+            CALL db.index.fulltext.queryNodes('entity', $query, {limit: 2})
+            YIELD node, score
+            CALL (node) {
+                WITH node
+                MATCH (node)-[r]->(neighbor)
+                RETURN node.id + ' - ' + type(r) + ' -> ' + neighbor.id AS output
+                UNION ALL
+                WITH node
+                MATCH (node)<-[r]-(neighbor)
+                RETURN neighbor.id + ' - ' + type(r) + ' -> ' + node.id AS output
+            }
+            RETURN output
+            LIMIT 50
+            """,
+            {"query": ft_query},
+        )
         result += "\n".join([el['output'] for el in response])
     return result
 
 def retriever(question: str):
-    print(f"Search query: {question}")
+    logging.info(f"[retriever] Retrieving context for question: {question}")
+    
+    # Run both retrievers in parallel
     structured_data = structured_retriever(question)
-    unstructured_data = [el.page_content for el in vector_index.similarity_search(question)]
-    final_data = f"""Structured data:
-{structured_data}
-Unstructured data:
-{"#Document ". join(unstructured_data)}
-    """
+    unstructured_results = vector_index.similarity_search(question)
+    unstructured_data = [el.page_content for el in unstructured_results]
+    
+    # Conditionally build the final context
+    final_context = []
+    if structured_data:
+        logging.info("Adding structured data to context.")
+        final_context.append(f"Structured data:\n{structured_data}")
+        
+    if unstructured_data:
+        logging.info("Adding unstructured data to context.")
+        # Use a more descriptive joiner
+        unstructured_context = "\n\n---\n\n".join(unstructured_data)
+        final_context.append(f"Unstructured data:\n{unstructured_context}")
+
+    final_data = "\n\n".join(final_context)
+    logging.debug(f"[retriever] Final combined data:\n{final_data}")
     return final_data
 
-# default_cypher = "MATCH (s)-[r:!MENTIONS]->(t) RETURN s,r,t LIMIT 50"
-
-
 vector_index = Neo4jVector.from_existing_graph(
-    OpenAIEmbeddings(),
+    GoogleGenerativeAIEmbeddings(model="models/text-embedding-004"),
     search_type="hybrid",
     node_label="Document",
     text_node_properties=["text"],
@@ -83,7 +103,6 @@ vector_index = Neo4jVector.from_existing_graph(
     index_name="new_vector_index"
 )
 
-graph.query("CREATE FULLTEXT INDEX entity IF NOT EXISTS FOR (e:__Entity__) ON EACH [e.id]")
 
 class Entities(BaseModel):
     """Identifying information about entities."""
@@ -91,36 +110,38 @@ class Entities(BaseModel):
     names: List[str] = Field(
         ...,
         description="All the person, organization, or business entities that "
-        "appear in the text",
+        "appear in the text. If the text mentions a general category like 'phone' or 'product', "
+        "include that as well.",
     )
 
 entity_prompt = ChatPromptTemplate.from_messages(
     [
         (
             "system",
-            "You are extracting product reviews of people from ecommerce platform and person entities from the text.",
+            "You are an expert at extracting product names, brands, and general product categories from a user's question. "
+            "Your goal is to identify any specific entities mentioned."
         ),
         (
             "human",
-            "Use the given format to extract information from the following "
-            "input: {question}",
+            "Extract all entities from the following input, using the format provided: {question}",
         ),
     ]
 )
 
 entity_chain = entity_prompt | llm.with_structured_output(Entities)
-# entity_chain.invoke({"question": "which product is better?"}).names
 
-_template = """Given the following conversation and a follow up question, rephrase the follow up question to be a standalone question,
-in its original language.
-Chat History:
-{chat_history}
-Follow Up Input: {question}
-Standalone question:"""
+_template = """
+                Given the following conversation and a follow up question, rephrase the follow up question to be a standalone question,in its original language.
+                Chat History:
+                {chat_history}
+                Follow Up Input: {question}
+                Standalone question:
+            """
 
 CONDENSE_QUESTION_PROMPT = PromptTemplate.from_template(_template)
 
 def _format_chat_history(chat_history: List[Tuple[str, str]]) -> List:
+    logging.info(f"[_format_chat_history] Formatting chat history: {chat_history}")
     buffer = []
     for human, ai in chat_history:
         buffer.append(HumanMessage(content=human))
@@ -128,11 +149,10 @@ def _format_chat_history(chat_history: List[Tuple[str, str]]) -> List:
     return buffer
 
 _search_query = RunnableBranch(
-    # If input includes chat_history, we condense it with the follow-up question
     (
         RunnableLambda(lambda x: bool(x.get("chat_history"))).with_config(
             run_name="HasChatHistoryCheck"
-        ),  # Condense follow-up question and chat into a standalone_question
+        ),  
         RunnablePassthrough.assign(
             chat_history=lambda x: _format_chat_history(x["chat_history"])
         )
@@ -140,24 +160,17 @@ _search_query = RunnableBranch(
         | llm
         | StrOutputParser(),
     ),
-    # Else, we have no chat history, so just pass through the question
     RunnableLambda(lambda x : x["question"]),
 )
 
-
-
 question_template = """Answer the question based only on the following context:
-{context}
-
-Question: {question}
-Use natural language and be concise.
-Answer:"""
-
-
-
+                        {context}
+                        Question: {question}
+                        Use natural language and be concise.
+                        Answer:
+                    """
 
 prompt = ChatPromptTemplate.from_template(question_template)
-
 
 chain = (
     RunnableParallel(
@@ -171,18 +184,16 @@ chain = (
     | StrOutputParser()
 )
 
-chain.invoke({"question": "which is the best phone for daily usage?"})
+# chain.invoke({"question": "which is the best phone for daily usage?"})
 
 def process_prompt(prompt: str, chat_history: List[dict] = None) -> str:
-    # Prepare input for chain.invoke
+    # print(f"[process_prompt] Prompt: {prompt}")
+    # print(f"[process_prompt] Chat history: {chat_history}")
     input_data = {
         "question": prompt,
         "chat_history": chat_history or []
     }
-
-    # Invoke the chain and return the result
-    return chain.invoke(input_data)
-
-
-
-# chain.invoke({"question": "which is better for taking photos and processing them for photography"})
+    logging.info(f"[process_prompt] Input data: {input_data}")
+    result = chain.invoke(input_data)
+    # print(f"[process_prompt] Final response: {result}")
+    return result
