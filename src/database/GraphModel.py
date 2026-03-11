@@ -27,4 +27,3 @@ def get_graph() -> Neo4jGraph:
             raise
 
     return _graph_instance
-graph = get_graph()

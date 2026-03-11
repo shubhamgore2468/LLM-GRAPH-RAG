@@ -3,7 +3,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_experimental.graph_transformers import LLMGraphTransformer
 from google.oauth2 import service_account
 from dotenv import load_dotenv
-from src.database.GraphModel import graph
+from src.database.GraphModel import get_graph
 import logging
 
 from src.logging_config import setup_logging
@@ -27,9 +27,9 @@ def add_data_to_graph(documents):
 
     try:
         graph_documents = llm_transformer.convert_to_graph_documents(documents)
-        # several API calls, depending on number of chunks, 
+        # several API calls, depending on number of chunks,
 
-        graph.add_graph_documents(
+        get_graph().add_graph_documents(
             graph_documents,
             baseEntityLabel=True,
             include_source=True

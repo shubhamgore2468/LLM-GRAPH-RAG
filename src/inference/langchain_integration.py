@@ -13,7 +13,7 @@ from google.oauth2 import service_account
 
 from langchain_neo4j import Neo4jVector
 from langchain_neo4j.vectorstores.neo4j_vector import remove_lucene_chars
-from src.database.GraphModel import graph
+from src.database.GraphModel import get_graph
 from pydantic import BaseModel, Field
 
 from dotenv import load_dotenv
@@ -56,7 +56,7 @@ def structured_retriever(question: str) -> str:
     for entity in entities.names:
         # ... rest of the function is the same
         ft_query = generate_full_text_query(entity)
-        response = graph.query(
+        response = get_graph().query(
             """
             CALL db.index.fulltext.queryNodes('entity', $query, {limit: 2})
             YIELD node, score
@@ -82,7 +82,7 @@ def retriever(question: str):
     
     # Run both retrievers in parallel
     structured_data = structured_retriever(question)
-    unstructured_results = vector_index.similarity_search(question)
+    unstructured_results = get_vector_index().similarity_search(question)
     unstructured_data = [el.page_content for el in unstructured_results]
     
     # Conditionally build the final context
@@ -101,14 +101,20 @@ def retriever(question: str):
     logging.debug(f"[retriever] Final combined data:\n{final_data}")
     return final_data
 
-vector_index = Neo4jVector.from_existing_graph(
-    GoogleGenerativeAIEmbeddings(model="models/text-embedding-004", credentials=_credentials),
-    search_type="hybrid",
-    node_label="Document",
-    text_node_properties=["text"],
-    embedding_node_property="embedding",
-    index_name="new_vector_index"
-)
+_vector_index = None
+
+def get_vector_index():
+    global _vector_index
+    if _vector_index is None:
+        _vector_index = Neo4jVector.from_existing_graph(
+            GoogleGenerativeAIEmbeddings(model="models/text-embedding-004", credentials=_credentials),
+            search_type="hybrid",
+            node_label="Document",
+            text_node_properties=["text"],
+            embedding_node_property="embedding",
+            index_name="new_vector_index"
+        )
+    return _vector_index
 
 
 class Entities(BaseModel):
